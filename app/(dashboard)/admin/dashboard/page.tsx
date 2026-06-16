@@ -1,12 +1,36 @@
+"use client";
+import { useState, useEffect } from 'react';
 import { Users, FolderKanban, Receipt, TrendingUp } from 'lucide-react';
+import { getAdminDashboardStats } from '@/app/actions';
 
 export default function AdminDashboard() {
-  const stats = [
-    { label: "Active Projects", value: "12", icon: FolderKanban },
-    { label: "Total Clients", value: "48", icon: Users },
-    { label: "Pending Invoices", value: "₹14,500", icon: Receipt },
-    { label: "Monthly Revenue", value: "₹42,000", icon: TrendingUp },
-  ];
+  const [stats, setStats] = useState<any[]>([
+    { label: "Active Projects", value: "0", icon: FolderKanban },
+    { label: "Total Clients", value: "0", icon: Users },
+    { label: "Pending Invoices", value: "₹0", icon: Receipt },
+    { label: "Monthly Revenue", value: "₹0", icon: TrendingUp },
+  ]);
+  const [recentProjects, setRecentProjects] = useState<any[]>([]);
+  const [staffActivity, setStaffActivity] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadStats() {
+      const data = await getAdminDashboardStats();
+      if (data) {
+        setStats([
+          { label: "Active Projects", value: data.stats[0].value, icon: FolderKanban },
+          { label: "Total Clients", value: data.stats[1].value, icon: Users },
+          { label: "Pending Invoices", value: data.stats[2].value, icon: Receipt },
+          { label: "Monthly Revenue", value: data.stats[3].value, icon: TrendingUp },
+        ]);
+        setRecentProjects(data.recentProjects || []);
+        setStaffActivity(data.staffActivity || []);
+      }
+      setLoading(false);
+    }
+    loadStats();
+  }, []);
 
   return (
     <div>
@@ -28,33 +52,49 @@ export default function AdminDashboard() {
         <div className="bg-neutral-900 border border-white/5 p-6 rounded-sm">
           <h2 className="text-xl font-bold text-white mb-6">Recent Projects</h2>
           <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex justify-between items-center pb-4 border-b border-white/5 last:border-0">
-                <div>
-                  <h4 className="text-white font-medium">Summer Campaign 2024</h4>
-                  <p className="text-sm text-gray-400">Client: Nike</p>
+            {loading ? (
+              <p className="text-xs text-gray-500">Loading projects...</p>
+            ) : recentProjects.length === 0 ? (
+              <p className="text-xs text-gray-500">No projects recorded yet.</p>
+            ) : (
+              recentProjects.map((proj, i) => (
+                <div key={i} className="flex justify-between items-center pb-4 border-b border-white/5 last:border-0">
+                  <div>
+                    <h4 className="text-white font-medium">{proj.title}</h4>
+                    <p className="text-sm text-gray-400">Client: {proj.client_company || 'Internal'}</p>
+                  </div>
+                  <span className="px-3 py-1 bg-orange-500/10 text-orange-500 text-xs font-bold rounded-full uppercase">
+                    {proj.status}
+                  </span>
                 </div>
-                <span className="px-3 py-1 bg-orange-500/10 text-orange-500 text-xs font-bold rounded-full">In Progress</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
         <div className="bg-neutral-900 border border-white/5 p-6 rounded-sm">
           <h2 className="text-xl font-bold text-white mb-6">Staff Activity</h2>
           <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-start gap-4 pb-4 border-b border-white/5 last:border-0">
-                <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-orange-500 font-bold">
-                  S{i}
+            {loading ? (
+              <p className="text-xs text-gray-500">Loading activity...</p>
+            ) : staffActivity.length === 0 ? (
+              <p className="text-xs text-gray-500">No recent activity logged.</p>
+            ) : (
+              staffActivity.map((act, i) => (
+                <div key={i} className="flex items-start gap-4 pb-4 border-b border-white/5 last:border-0">
+                  <div className="w-10 h-10 rounded-full bg-neutral-800 flex items-center justify-center text-orange-500 font-bold uppercase">
+                    {act.staff_name ? act.staff_name.charAt(0) : 'S'}
+                  </div>
+                  <div>
+                    <h4 className="text-white text-sm">{act.staff_name} logged {act.hours_worked} hours</h4>
+                    <p className="text-xs text-gray-400">"{act.update_text}"</p>
+                  </div>
+                  <span className="text-xs text-gray-500 ml-auto font-mono">
+                    {act.date ? new Date(act.date).toLocaleDateString() : 'Today'}
+                  </span>
                 </div>
-                <div>
-                  <h4 className="text-white text-sm">John Doe logged 8 hours</h4>
-                  <p className="text-xs text-gray-400">"Completed color grading for Nike campaign"</p>
-                </div>
-                <span className="text-xs text-gray-500 ml-auto">2h ago</span>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>

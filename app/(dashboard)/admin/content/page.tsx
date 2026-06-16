@@ -1,16 +1,28 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { Settings, Info, Image, Film, Plus, Trash2, CheckCircle2, Globe, Save, Play, Link as LinkIcon } from 'lucide-react';
+import { 
+  getHomeConfig, 
+  saveHomeConfig, 
+  getContactConfig, 
+  saveContactConfig, 
+  getServices, 
+  addService, 
+  deleteService, 
+  getPortfolio, 
+  addPortfolio, 
+  deletePortfolio 
+} from '@/app/actions';
 
 interface CustomService {
-  id: number;
+  id: string | number;
   title: string;
   desc: string;
   icon: string;
 }
 
 interface PortfolioItem {
-  id: number;
+  id: string | number;
   title: string;
   type: 'Photo' | 'Video';
   category: 'Commercial' | 'Fashion' | 'Events' | 'Short Film';
@@ -56,16 +68,72 @@ export default function WebsiteContentManager() {
   // 1. Home Config State
   const [homeConfig, setHomeConfig] = useState(DEFAULT_HOME_CONFIG);
 
-  // Load configuration from local storage on mount
+  // 2. Custom Services list state
+  const [customServices, setCustomServices] = useState<CustomService[]>([]);
+  const [newServiceTitle, setNewServiceTitle] = useState('');
+  const [newServiceDesc, setNewServiceDesc] = useState('');
+
+  // 3. Portfolio items list state
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [newPortTitle, setNewPortTitle] = useState('');
+  const [newPortType, setNewPortType] = useState<'Photo' | 'Video'>('Video');
+  const [newPortCat, setNewPortCat] = useState<PortfolioItem['category']>('Commercial');
+  const [newPortUrl, setNewPortUrl] = useState('');
+
+  // 4. Contact details state
+  const [contactEmail, setContactEmail] = useState("hello@forgstudio.com");
+  const [contactPhone, setContactPhone] = useState("+91 98765 43210");
+  const [contactAddress, setContactAddress] = useState("Studio 4A, Creative Hub, Kochi, India");
+  const [whatsAppLink, setWhatsAppLink] = useState("https://wa.me/919876543210");
+
+  // Load all configurations from database on mount
   useEffect(() => {
-    const saved = localStorage.getItem('forg_home_config');
-    if (saved) {
-      try {
-        setHomeConfig(JSON.parse(saved));
-      } catch (e) {
-        console.error(e);
+    async function loadData() {
+      // Load Home Config
+      const dbHome = await getHomeConfig();
+      if (dbHome) {
+        setHomeConfig(dbHome);
+      } else {
+        // Fallback to localStorage if empty
+        const saved = localStorage.getItem('forg_home_config');
+        if (saved) {
+          try { setHomeConfig(JSON.parse(saved)); } catch (e) {}
+        }
+      }
+
+      // Load Contact Config
+      const dbContact = await getContactConfig();
+      if (dbContact) {
+        setContactEmail(dbContact.email || "hello@forgstudio.com");
+        setContactPhone(dbContact.phone || "+91 98765 43210");
+        setContactAddress(dbContact.address || "Studio 4A, Creative Hub, Kochi, India");
+        setWhatsAppLink(dbContact.whatsAppLink || "https://wa.me/919876543210");
+      }
+
+      // Load Services
+      const dbServices = await getServices();
+      if (dbServices.length > 0) {
+        setCustomServices(dbServices.map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          desc: s.description,
+          icon: s.icon || 'Camera'
+        })));
+      }
+
+      // Load Portfolio
+      const dbPortfolio = await getPortfolio();
+      if (dbPortfolio.length > 0) {
+        setPortfolio(dbPortfolio.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          type: p.type === 'photo' ? 'Photo' : 'Video',
+          category: 'Commercial', // default category
+          url: p.url
+        })));
       }
     }
+    loadData();
   }, []);
 
   const triggerNotification = (message: string) => {
@@ -76,10 +144,15 @@ export default function WebsiteContentManager() {
   };
 
   // Save Home Configuration
-  const handleSaveHomeConfig = (e: React.FormEvent) => {
+  const handleSaveHomeConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('forg_home_config', JSON.stringify(homeConfig));
-    triggerNotification("Homepage settings updated successfully! Rebuild triggered.");
+    const res = await saveHomeConfig(homeConfig);
+    if (res.success) {
+      triggerNotification("Homepage settings synced to Supabase database successfully!");
+    } else {
+      triggerNotification("Error saving homepage settings to database.");
+    }
   };
 
   // Helper to update specific subfields in homeConfig
@@ -115,80 +188,75 @@ export default function WebsiteContentManager() {
     });
   };
 
-  // 2. Custom Services list state (Separate from homepage featured spots)
-  const [customServices, setCustomServices] = useState<CustomService[]>([
-    { id: 1, title: "Cinematography", desc: "High-end commercial videography, drone visuals, and brand films shot in 4K resolution.", icon: "Camera" },
-    { id: 2, title: "Video Editing", desc: "Expert video narrative pacing, transition design, and multi-cam assembly rendering.", icon: "Scissors" },
-    { id: 3, title: "Color Grading", desc: "Cinematic coloring, LUT setups, tone correction, and color matching for mood consistency.", icon: "Palette" },
-    { id: 4, title: "Sound Design", desc: "Ambience creation, Foley effects, sound mixes, and custom soundtrack overlays.", icon: "Volume2" }
-  ]);
-  const [newServiceTitle, setNewServiceTitle] = useState('');
-  const [newServiceDesc, setNewServiceDesc] = useState('');
-
-  // 3. Portfolio items list state
-  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([
-    { id: 1, title: "Reebok Z-Run Ad", type: "Video", category: "Commercial", url: "/portfolio/reebok.mp4" },
-    { id: 2, title: "Vogue Summer Shoot", type: "Photo", category: "Fashion", url: "/portfolio/vogue-summer.jpg" },
-    { id: 3, title: "BMW M5 cinematic reel", type: "Video", category: "Commercial", url: "/portfolio/bmw.mp4" },
-    { id: 4, title: "Wedding in Udaipur", type: "Photo", category: "Events", url: "/portfolio/udaipur.jpg" },
-  ]);
-  const [newPortTitle, setNewPortTitle] = useState('');
-  const [newPortType, setNewPortType] = useState<'Photo' | 'Video'>('Video');
-  const [newPortCat, setNewPortCat] = useState<PortfolioItem['category']>('Commercial');
-  const [newPortUrl, setNewPortUrl] = useState('');
-
-  // 4. Contact details state
-  const [contactEmail, setContactEmail] = useState("hello@forgstudio.com");
-  const [contactPhone, setContactPhone] = useState("+91 98765 43210");
-  const [contactAddress, setContactAddress] = useState("Studio 4A, Creative Hub, Kochi, India");
-  const [whatsAppLink, setWhatsAppLink] = useState("https://wa.me/919876543210");
-
-  const handleSaveContact = (e: React.FormEvent) => {
+  const handleSaveContact = async (e: React.FormEvent) => {
     e.preventDefault();
-    triggerNotification("Contact information updated successfully!");
+    const res = await saveContactConfig({
+      email: contactEmail,
+      phone: contactPhone,
+      address: contactAddress,
+      whatsAppLink: whatsAppLink
+    });
+    if (res.success) {
+      triggerNotification("Contact information updated in database successfully!");
+    } else {
+      triggerNotification("Error updating contact info in database.");
+    }
   };
 
-  const handleAddCustomService = (e: React.FormEvent) => {
+  const handleAddCustomService = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newServiceTitle || !newServiceDesc) return;
-    const newService: CustomService = {
-      id: Date.now(),
-      title: newServiceTitle,
-      desc: newServiceDesc,
-      icon: "Camera"
-    };
-    setCustomServices([...customServices, newService]);
-    setNewServiceTitle('');
-    setNewServiceDesc('');
-    triggerNotification(`Service '${newServiceTitle}' added.`);
+    const res = await addService(newServiceTitle, newServiceDesc, 'Camera');
+    if (res.success && res.service) {
+      const added = res.service;
+      setCustomServices([...customServices, {
+        id: added.id,
+        title: added.title,
+        desc: added.description,
+        icon: added.icon || 'Camera'
+      }]);
+      setNewServiceTitle('');
+      setNewServiceDesc('');
+      triggerNotification(`Service '${newServiceTitle}' saved to database.`);
+    }
   };
 
-  const handleDeleteCustomService = (id: number) => {
+  const handleDeleteCustomService = async (id: string | number) => {
     const sName = customServices.find(s => s.id === id)?.title;
-    setCustomServices(customServices.filter(s => s.id !== id));
-    triggerNotification(`Service '${sName}' removed.`);
+    const res = await deleteService(String(id));
+    if (res.success) {
+      setCustomServices(customServices.filter(s => s.id !== id));
+      triggerNotification(`Service '${sName}' removed from database.`);
+    }
   };
 
-  const handleAddPortfolio = (e: React.FormEvent) => {
+  const handleAddPortfolio = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newPortTitle || !newPortUrl) return;
-    const newItem: PortfolioItem = {
-      id: Date.now(),
-      title: newPortTitle,
-      type: newPortType,
-      category: newPortCat,
-      url: newPortUrl
-    };
-    setPortfolio([...portfolio, newItem]);
-    setNewPortTitle('');
-    setNewPortUrl('');
-    triggerNotification(`Portfolio item '${newPortTitle}' uploaded.`);
+    const dbType = newPortType === 'Photo' ? 'photo' : 'video';
+    const res = await addPortfolio(newPortTitle, dbType, newPortUrl, true);
+    if (res.success && res.item) {
+      const added = res.item;
+      setPortfolio([...portfolio, {
+        id: added.id,
+        title: added.title,
+        type: added.type === 'photo' ? 'Photo' : 'Video',
+        category: newPortCat,
+        url: added.url
+      }]);
+      setNewPortTitle('');
+      setNewPortUrl('');
+      triggerNotification(`Portfolio item '${newPortTitle}' saved to database.`);
+    }
   };
 
-  const handleDeletePortfolio = (id: number) => {
+  const handleDeletePortfolio = async (id: string | number) => {
     const pTitle = portfolio.find(p => p.id === id)?.title;
-    setPortfolio(portfolio.filter(p => p.id !== id));
-    triggerNotification(`Portfolio item '${pTitle}' deleted.`);
+    const res = await deletePortfolio(String(id));
+    if (res.success) {
+      setPortfolio(portfolio.filter(p => p.id !== id));
+      triggerNotification(`Portfolio item '${pTitle}' deleted from database.`);
+    }
   };
 
   return (

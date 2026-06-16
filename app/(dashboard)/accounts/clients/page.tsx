@@ -1,9 +1,10 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Search, Edit2, Trash2, X, Building, Mail, Phone, IndianRupee, Landmark } from 'lucide-react';
+import { getClients, addClient, updateClient, deleteClient } from '@/app/actions';
 
 interface AccountClient {
-  id: number;
+  id: string | number;
   company: string;
   contactName: string;
   email: string;
@@ -17,13 +18,7 @@ interface AccountClient {
 }
 
 export default function AccountsClients() {
-  const [clients, setClients] = useState<AccountClient[]>([
-    { id: 1, company: "Nike India", contactName: "Rahul Sharma", email: "rahul@nike.com", phone: "+91 98765 43210", address: "Sector 5, Gurgaon, India", gstIn: "06AAAAA1111A1Z1", creditTerms: "Net 30", totalInvoiced: 24500, totalPaid: 24500, status: "Fully Paid" },
-    { id: 2, company: "Adidas Group", contactName: "Priya Nair", email: "priya@adidas.com", phone: "+91 98765 43211", address: "Whitefield, Bangalore, India", gstIn: "29BBBBB2222B2Z2", creditTerms: "Net 30", totalInvoiced: 18200, totalPaid: 10000, status: "Partially Paid" },
-    { id: 3, company: "Puma Sports", contactName: "Kabir Singh", email: "kabir@puma.com", phone: "+91 98765 43212", address: "Andheri West, Mumbai, India", gstIn: "27CCCCC3333C3Z3", creditTerms: "Net 15", totalInvoiced: 6800, totalPaid: 0, status: "Overdue" },
-    { id: 4, company: "Reebok Fitness", contactName: "Anya Malhotra", email: "anya@reebok.com", phone: "+91 98765 43213", address: "Connaught Place, New Delhi, India", gstIn: "07DDDDD4444D4Z4", creditTerms: "Net 30", totalInvoiced: 12800, totalPaid: 12800, status: "Fully Paid" },
-    { id: 5, company: "Coca-Cola Co.", contactName: "Vikram Sen", email: "vikram@coca-cola.com", phone: "+91 98765 43214", address: "MG Road, Kochi, India", gstIn: "32EEEEE5555E5Z5", creditTerms: "Net 45", totalInvoiced: 9500, totalPaid: 0, status: "Unpaid" }
-  ]);
+  const [clients, setClients] = useState<AccountClient[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -45,6 +40,30 @@ export default function AccountsClients() {
   const [totalPaid, setTotalPaid] = useState(0);
   const [status, setStatus] = useState<AccountClient['status']>('Unpaid');
 
+  // Load clients from database on mount
+  const loadClients = async () => {
+    const dbClients = await getClients();
+    if (dbClients) {
+      setClients(dbClients.map((c: any) => ({
+        id: c.id,
+        company: c.company || 'N/A',
+        contactName: c.name || 'N/A',
+        email: c.email || 'N/A',
+        phone: c.phone || 'N/A',
+        address: c.address || '',
+        gstIn: c.gst_in || '',
+        creditTerms: c.credit_terms || 'Net 30',
+        totalInvoiced: parseFloat(c.total_invoiced || '0'),
+        totalPaid: parseFloat(c.total_paid || '0'),
+        status: (c.status || 'Unpaid') as any
+      })));
+    }
+  };
+
+  useEffect(() => {
+    loadClients();
+  }, []);
+
   const handleOpenAddModal = () => {
     setCompany('');
     setContactName('');
@@ -59,10 +78,9 @@ export default function AccountsClients() {
     setIsAddModalOpen(true);
   };
 
-  const handleAddClient = (e: React.FormEvent) => {
+  const handleAddClient = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newClient: AccountClient = {
-      id: Date.now(),
+    const res = await addClient({
       company,
       contactName,
       email,
@@ -70,12 +88,14 @@ export default function AccountsClients() {
       address,
       gstIn,
       creditTerms,
-      totalInvoiced: Number(totalInvoiced) || 0,
-      totalPaid: Number(totalPaid) || 0,
+      totalInvoiced: Number(totalInvoiced),
+      totalPaid: Number(totalPaid),
       status
-    };
-    setClients([...clients, newClient]);
-    setIsAddModalOpen(false);
+    });
+    if (res.success) {
+      await loadClients();
+      setIsAddModalOpen(false);
+    }
   };
 
   const handleOpenEditModal = (client: AccountClient) => {
@@ -93,11 +113,10 @@ export default function AccountsClients() {
     setIsEditModalOpen(true);
   };
 
-  const handleEditClient = (e: React.FormEvent) => {
+  const handleEditClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentClient) return;
-    setClients(clients.map(c => c.id === currentClient.id ? {
-      ...c,
+    const res = await updateClient(String(currentClient.id), {
       company,
       contactName,
       email,
@@ -108,13 +127,19 @@ export default function AccountsClients() {
       totalInvoiced: Number(totalInvoiced),
       totalPaid: Number(totalPaid),
       status
-    } : c));
-    setIsEditModalOpen(false);
+    });
+    if (res.success) {
+      await loadClients();
+      setIsEditModalOpen(false);
+    }
   };
 
-  const handleDeleteClient = (id: number) => {
+  const handleDeleteClient = async (id: string | number) => {
     if (confirm("Are you sure you want to delete this client account record?")) {
-      setClients(clients.filter(c => c.id !== id));
+      const res = await deleteClient(String(id));
+      if (res.success) {
+        await loadClients();
+      }
     }
   };
 

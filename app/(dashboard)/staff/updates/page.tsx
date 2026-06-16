@@ -1,9 +1,10 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FileText, Plus, Clock, BookOpen, Trash2, Calendar, AlertCircle, Sparkles } from 'lucide-react';
+import { getDailyUpdates, addDailyUpdate, deleteDailyUpdate } from '@/app/actions';
 
 interface WorkLog {
-  id: number;
+  id: string | number;
   date: string;
   project: string;
   hours: number;
@@ -12,11 +13,7 @@ interface WorkLog {
 }
 
 export default function DailyUpdates() {
-  const [logs, setLogs] = useState<WorkLog[]>([
-    { id: 1, date: "2026-06-15", project: "Nike India Campaign", hours: 8, accomplishments: "Completed rough assembly edit of the 60-second product spot, color matching raw footage", challenges: "Exposure values on raw track footage were slightly inconsistent" },
-    { id: 2, date: "2026-06-14", project: "Nike India Campaign", hours: 6.5, accomplishments: "Selected background music soundtrack tracks and synced baseline beats", challenges: "None" },
-    { id: 3, date: "2026-06-12", project: "Reebok Z-Run Ad", hours: 7.5, accomplishments: "Completed voiceover sync and completed full background noise cleanup", challenges: "Humming frequency in main voice track took longer than expected to filter out" }
-  ]);
+  const [logs, setLogs] = useState<WorkLog[]>([]);
 
   // Form states
   const [project, setProject] = useState('Nike India Campaign');
@@ -27,33 +24,44 @@ export default function DailyUpdates() {
 
   const [notification, setNotification] = useState<string | null>(null);
 
-  const handleSubmitUpdate = (e: React.FormEvent) => {
+  const loadLogs = async () => {
+    const dbUpdates = await getDailyUpdates();
+    if (dbUpdates) {
+      setLogs(dbUpdates.map((u: any) => ({
+        id: u.id,
+        date: u.date ? (u.date instanceof Date ? u.date.toISOString().split('T')[0] : String(u.date).split('T')[0]) : '',
+        project: 'General Workspace', // default project name since updates doesn't store project relation directly
+        hours: parseFloat(u.hours_worked || '0'),
+        accomplishments: u.update_text || '',
+        challenges: 'None' // placeholder / fallback
+      })));
+    }
+  };
+
+  useEffect(() => {
+    loadLogs();
+  }, []);
+
+  const handleSubmitUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!accomplishments.trim()) return;
 
-    const newLog: WorkLog = {
-      id: Date.now(),
-      date,
-      project,
-      hours: parseFloat(hours) || 0,
-      accomplishments,
-      challenges: challenges.trim() || 'None'
-    };
-
-    setLogs([newLog, ...logs]);
-    
-    // Reset accomplishment textareas
-    setAccomplishments('');
-    setChallenges('');
-
-    // Trigger toast notification
-    setNotification("Daily work log submitted successfully!");
-    setTimeout(() => setNotification(null), 3000);
+    const res = await addDailyUpdate(undefined, accomplishments, parseFloat(hours));
+    if (res.success) {
+      await loadLogs();
+      setAccomplishments('');
+      setChallenges('');
+      setNotification("Daily work log submitted successfully to database!");
+      setTimeout(() => setNotification(null), 3000);
+    }
   };
 
-  const handleDeleteLog = (id: number) => {
+  const handleDeleteLog = async (id: string | number) => {
     if (confirm("Are you sure you want to delete this log entry?")) {
-      setLogs(logs.filter(l => l.id !== id));
+      const res = await deleteDailyUpdate(String(id));
+      if (res.success) {
+        await loadLogs();
+      }
     }
   };
 

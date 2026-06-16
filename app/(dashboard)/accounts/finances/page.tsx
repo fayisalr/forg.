@@ -1,9 +1,10 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Landmark, ArrowUpRight, ArrowDownRight, FileText, Search, Trash2, X, AlertCircle } from 'lucide-react';
+import { getFinances, addTransaction, deleteTransaction } from '@/app/actions';
 
 interface Transaction {
-  id: number;
+  id: string | number;
   date: string;
   desc: string;
   entity: string;
@@ -14,15 +15,7 @@ interface Transaction {
 }
 
 export default function AccountsFinances() {
-  const [txs, setTxs] = useState<Transaction[]>([
-    { id: 1, date: "2026-06-15", desc: "Invoice #1043 Payment", entity: "Nike India", category: "Project Revenue", type: "Income", amount: 12000, status: "Completed" },
-    { id: 2, date: "2026-06-14", desc: "Red V-Raptor Camera Hire", entity: "Adorama Rentals", category: "Equipment Rental", type: "Expense", amount: 1800, status: "Completed" },
-    { id: 3, date: "2026-06-12", desc: "Invoice #1044 Partial Payment", entity: "Adidas Group", category: "Project Revenue", type: "Income", amount: 10000, status: "Completed" },
-    { id: 4, date: "2026-06-10", desc: "Adobe Creative Cloud License", entity: "Adobe Systems", category: "Software Subscription", type: "Expense", amount: 250, status: "Completed" },
-    { id: 5, date: "2026-06-08", desc: "Studio Electricity Bill", entity: "State Electricity Board", category: "Utilities", type: "Expense", amount: 480, status: "Completed" },
-    { id: 6, date: "2026-06-05", desc: "Colorist Contract Work - Nike Reel", entity: "Rohan Das", category: "Payroll", type: "Expense", amount: 2000, status: "Completed" },
-    { id: 7, date: "2026-06-01", desc: "Invoice #1042 Payment", entity: "Reebok Fitness", category: "Project Revenue", type: "Income", amount: 12800, status: "Completed" }
-  ]);
+  const [txs, setTxs] = useState<Transaction[]>([]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -37,43 +30,95 @@ export default function AccountsFinances() {
   const [status, setStatus] = useState<'Completed' | 'Pending'>('Completed');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
-  const handleLogTransaction = (e: React.FormEvent) => {
+  const loadFinances = async () => {
+    const data = await getFinances();
+    if (data) {
+      const dbTxs: Transaction[] = [];
+      
+      const formatDate = (val: any) => {
+        if (!val) return '';
+        if (val instanceof Date) return val.toISOString().split('T')[0];
+        if (typeof val === 'string') return val.split('T')[0];
+        return String(val);
+      };
+
+      data.incomes.forEach((i: any) => {
+        dbTxs.push({
+          id: i.id,
+          date: formatDate(i.date),
+          desc: i.description || 'N/A',
+          entity: i.entity || 'N/A',
+          category: (i.category || 'Project Revenue') as any,
+          type: 'Income',
+          amount: parseFloat(i.amount || '0'),
+          status: (i.status || 'Completed') as any
+        });
+      });
+
+      data.expenses.forEach((e: any) => {
+        dbTxs.push({
+          id: e.id,
+          date: formatDate(e.date),
+          desc: e.description || 'N/A',
+          entity: e.entity || 'N/A',
+          category: (e.category || 'General') as any,
+          type: 'Expense',
+          amount: parseFloat(e.amount || '0'),
+          status: (e.status || 'Completed') as any
+        });
+      });
+
+      // Sort by date desc
+      dbTxs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTxs(dbTxs);
+    }
+  };
+
+  useEffect(() => {
+    loadFinances();
+  }, []);
+
+  const handleLogTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!desc.trim() || !entity.trim() || !amount) return;
 
-    const newTx: Transaction = {
-      id: Date.now(),
-      date,
-      desc,
-      entity,
-      category,
-      type,
+    const res = await addTransaction({
+      type: type === 'Income' ? 'income' : 'expense',
       amount: parseFloat(amount) || 0,
-      status
-    };
+      description: desc,
+      category,
+      entity,
+      status,
+      date
+    });
 
-    setTxs([newTx, ...txs]);
-    setIsAddModalOpen(false);
+    if (res.success) {
+      await loadFinances();
+      setIsAddModalOpen(false);
 
-    // reset
-    setDesc('');
-    setEntity('');
-    setAmount('');
-    setStatus('Completed');
-    setCategory('Project Revenue');
-    setType('Income');
+      // reset
+      setDesc('');
+      setEntity('');
+      setAmount('');
+      setStatus('Completed');
+      setCategory('Project Revenue');
+      setType('Income');
+    }
   };
 
-  const handleDeleteTx = (id: number) => {
+  const handleDeleteTx = async (id: string | number) => {
     if (confirm("Are you sure you want to delete this transaction record?")) {
-      setTxs(txs.filter(t => t.id !== id));
+      const res = await deleteTransaction(String(id));
+      if (res.success) {
+        await loadFinances();
+      }
     }
   };
 
   const filteredTxs = txs.filter(t => {
     const matchesSearch = t.desc.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          t.entity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          t.category.toLowerCase().includes(searchQuery.toLowerCase());
+                           t.entity.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                           t.category.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesType = typeFilter === 'All' || t.type === typeFilter;
     return matchesSearch && matchesType;
   });

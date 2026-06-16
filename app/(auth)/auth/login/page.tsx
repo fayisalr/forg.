@@ -33,6 +33,9 @@ export default function LoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Set cookie for Server Actions session mapping
+    document.cookie = `forg_user_email=${encodeURIComponent(email)}; path=/; max-age=86400`;
+    
     // Redirect based on selected active login portal tab
     if (activeTab === 'admin') {
       window.location.href = '/admin/dashboard';

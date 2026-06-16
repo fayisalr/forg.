@@ -1,9 +1,10 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, CheckSquare, Clock, AlertTriangle, Calendar, CheckCircle2, Trash2, X, Play, Check } from 'lucide-react';
+import { getTasks, addTask, updateTaskStatus, deleteTask } from '@/app/actions';
 
 interface Task {
-  id: number;
+  id: string | number;
   title: string;
   project: string;
   priority: 'High' | 'Medium' | 'Low';
@@ -13,13 +14,7 @@ interface Task {
 }
 
 export default function StaffTasks() {
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: 1, title: "Color grade Scene 04", project: "Nike India Campaign", priority: "High", status: "In Progress", deadline: "2026-06-20", desc: "Correct exposure offsets and match color profile across multi-camera shoots." },
-    { id: 2, title: "Export final 4K masters", project: "Nike India Campaign", priority: "High", status: "Pending", deadline: "2026-06-24", desc: "Render final deliverables in ProRes 422 HQ format with stereo sound syncing." },
-    { id: 3, title: "Retouch portrait batch", project: "Vogue Summer Shoot", priority: "Medium", status: "Pending", deadline: "2026-06-25", desc: "Perform skin retouching, background cleaning, and contrast adjustments for 15 shots." },
-    { id: 4, title: "Audio Mix down & Mastering", project: "Reebok Z-Run Ad", priority: "High", status: "Completed", deadline: "2026-06-12", desc: "Sync voiceover files, clean frequency noise, and master final background track output." },
-    { id: 5, title: "Storyboard Draft V2", project: "Coca-Cola Commercial", priority: "Low", status: "Pending", deadline: "2026-07-02", desc: "Incorporate client revisions to scene 3 and draw additional keyframes." }
-  ]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   const [activeFilter, setActiveFilter] = useState<'All' | 'Pending' | 'In Progress' | 'Completed'>('All');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -32,53 +27,84 @@ export default function StaffTasks() {
   const [deadline, setDeadline] = useState('');
   const [desc, setDesc] = useState('');
 
-  const handleCreateTask = (e: React.FormEvent) => {
+  const loadTasks = async () => {
+    const dbTasks = await getTasks();
+    if (dbTasks) {
+      setTasks(dbTasks.map((t: any) => ({
+        id: t.id,
+        title: t.title || 'N/A',
+        project: t.project_title || 'General',
+        priority: (t.priority || 'Medium') as any,
+        status: (t.status === 'in_progress' ? 'In Progress' : (t.status === 'completed' ? 'Completed' : 'Pending')) as any,
+        deadline: t.due_date ? new Date(t.due_date).toISOString().split('T')[0] : '',
+        desc: t.description || ''
+      })));
+    }
+  };
+
+  useEffect(() => {
+    loadTasks();
+  }, []);
+
+  const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newTask: Task = {
-      id: Date.now(),
+    
+    const dbStatus = status === 'In Progress' ? 'in_progress' : (status === 'Completed' ? 'completed' : 'pending');
+    const res = await addTask({
       title,
-      project,
+      description: desc,
       priority,
-      status,
-      deadline: deadline || new Date().toISOString().split('T')[0],
-      desc
+      status: dbStatus,
+      due_date: deadline || new Date().toISOString().split('T')[0],
+      project_id: null // optional, fallback to none
+    });
+
+    if (res.success) {
+      await loadTasks();
+      setIsAddModalOpen(false);
+      // reset
+      setTitle('');
+      setPriority('Medium');
+      setStatus('Pending');
+      setDeadline('');
+      setDesc('');
+    }
+  };
+
+  const handleToggleStatus = async (id: string | number) => {
+    const t = tasks.find(item => item.id === id);
+    if (!t) return;
+    const nextStatusMap: Record<Task['status'], string> = {
+      'Pending': 'in_progress',
+      'In Progress': 'completed',
+      'Completed': 'pending'
     };
-    setTasks([...tasks, newTask]);
-    setIsAddModalOpen(false);
-
-    // reset
-    setTitle('');
-    setPriority('Medium');
-    setStatus('Pending');
-    setDeadline('');
-    setDesc('');
+    const res = await updateTaskStatus(String(id), nextStatusMap[t.status]);
+    if (res.success) {
+      await loadTasks();
+    }
   };
 
-  const handleToggleStatus = (id: number) => {
-    setTasks(tasks.map(t => {
-      if (t.id === id) {
-        const nextStatusMap: Record<Task['status'], Task['status']> = {
-          'Pending': 'In Progress',
-          'In Progress': 'Completed',
-          'Completed': 'Pending'
-        };
-        return { ...t, status: nextStatusMap[t.status] };
-      }
-      return t;
-    }));
+  const handleMarkComplete = async (id: string | number) => {
+    const res = await updateTaskStatus(String(id), 'completed');
+    if (res.success) {
+      await loadTasks();
+    }
   };
 
-  const handleMarkComplete = (id: number) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, status: 'Completed' } : t));
+  const handleStartProgress = async (id: string | number) => {
+    const res = await updateTaskStatus(String(id), 'in_progress');
+    if (res.success) {
+      await loadTasks();
+    }
   };
 
-  const handleStartProgress = (id: number) => {
-    setTasks(tasks.map(t => t.id === id ? { ...t, status: 'In Progress' } : t));
-  };
-
-  const handleDeleteTask = (id: number) => {
+  const handleDeleteTask = async (id: string | number) => {
     if (confirm("Are you sure you want to delete this personal task?")) {
-      setTasks(tasks.filter(t => t.id !== id));
+      const res = await deleteTask(String(id));
+      if (res.success) {
+        await loadTasks();
+      }
     }
   };
 

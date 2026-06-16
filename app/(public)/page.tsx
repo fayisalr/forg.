@@ -35,19 +35,32 @@ const DEFAULT_CONFIG = {
   }
 };
 
+import { getHomeConfig } from '@/app/actions';
+
 export default function HomePage() {
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [showreelOpen, setShowreelOpen] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('forg_home_config');
-    if (saved) {
-      try {
-        setConfig(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse local homepage configuration:", e);
+    async function loadConfig() {
+      // Try to load from database first
+      const dbConfig = await getHomeConfig();
+      if (dbConfig) {
+        setConfig(dbConfig);
+        return;
+      }
+      
+      // Fallback to localStorage if database config is empty
+      const saved = localStorage.getItem('forg_home_config');
+      if (saved) {
+        try {
+          setConfig(JSON.parse(saved));
+        } catch (e) {
+          console.error("Failed to parse local homepage configuration:", e);
+        }
       }
     }
+    loadConfig();
   }, []);
 
   return (
