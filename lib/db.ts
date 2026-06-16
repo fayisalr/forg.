@@ -3,11 +3,11 @@ import { Pool } from 'pg';
 let pool: Pool;
 
 const poolConfig = {
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT || '5432'),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST || 'db.ygjmbeeuomwiciyjkmbd.supabase.co',
+  port: parseInt(process.env.DB_PORT || '6543'),
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'Forg@2030#@',
+  database: process.env.DB_NAME || 'postgres',
   ssl: {
     rejectUnauthorized: false
   }
