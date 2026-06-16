@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { Camera, Lock, Mail } from 'lucide-react';
+import { Camera, Lock, Mail, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
+import { loginUser } from '@/app/actions';
 
 type PortalRole = 'staff' | 'admin' | 'accounts';
 
@@ -9,6 +10,8 @@ export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<PortalRole>('staff');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   
   useEffect(() => {
     // Read the query parameters using standard browser APIs to avoid bailing out static generation
@@ -23,21 +26,33 @@ export default function LoginPage() {
     setActiveTab(tab);
     setEmail('');
     setPassword('');
+    setError(null);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Set cookie for Server Actions session mapping
-    document.cookie = `forg_user_email=${encodeURIComponent(email)}; path=/; max-age=86400`;
-    
-    // Redirect based on selected active login portal tab
-    if (activeTab === 'admin') {
-      window.location.href = '/admin/dashboard';
-    } else if (activeTab === 'accounts') {
-      window.location.href = '/accounts/dashboard';
-    } else {
-      window.location.href = '/staff/dashboard';
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      const res = await loginUser(email, password, activeTab);
+      if (res.success) {
+        // Redirect based on selected active login portal tab
+        if (activeTab === 'admin') {
+          window.location.href = '/admin/dashboard';
+        } else if (activeTab === 'accounts') {
+          window.location.href = '/accounts/dashboard';
+        } else {
+          window.location.href = '/staff/dashboard';
+        }
+      } else {
+        setError(res.error || "Authentication failed.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("An unexpected network error occurred.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -90,6 +105,13 @@ export default function LoginPage() {
           </button>
         </div>
 
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/20 text-red-500 rounded-sm p-4 text-xs font-semibold flex items-start gap-2.5 mb-6">
+            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <span>{error}</span>
+          </div>
+        )}
+
         <form onSubmit={handleLogin} className="space-y-6">
           <div>
             <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Email Address</label>
@@ -99,8 +121,9 @@ export default function LoginPage() {
                 type="email" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black border border-white/10 rounded-sm pl-10 pr-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors" 
-                placeholder="staff@forgstudio.com"
+                disabled={submitting}
+                className="w-full bg-black border border-white/10 rounded-sm pl-10 pr-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors disabled:opacity-50" 
+                placeholder="email@forgstudio.com"
                 required
               />
             </div>
@@ -114,7 +137,8 @@ export default function LoginPage() {
                 type="password" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-black border border-white/10 rounded-sm pl-10 pr-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors" 
+                disabled={submitting}
+                className="w-full bg-black border border-white/10 rounded-sm pl-10 pr-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-colors disabled:opacity-50" 
                 placeholder="••••••••"
                 required
               />
@@ -123,9 +147,10 @@ export default function LoginPage() {
 
           <button 
             type="submit" 
-            className="w-full bg-orange-500 text-black font-bold py-3.5 rounded-sm hover:bg-orange-400 transition-colors uppercase tracking-widest text-xs mt-4"
+            disabled={submitting}
+            className="w-full bg-orange-500 text-black font-bold py-3.5 rounded-sm hover:bg-orange-400 transition-colors uppercase tracking-widest text-xs mt-4 disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            Sign In to {activeTab} Portal
+            {submitting ? 'Authenticating...' : `Sign In to ${activeTab} Portal`}
           </button>
         </form>
       </div>

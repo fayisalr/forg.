@@ -684,3 +684,30 @@ export async function getAdminDashboardStats() {
     };
   }
 }
+
+export async function loginUser(email: string, password: string, role: string) {
+  try {
+    const res = await query(`
+      SELECT p.*, u.email
+      FROM profiles p
+      JOIN auth.users u ON p.id = u.id
+      WHERE LOWER(u.email) = LOWER($1) AND p.password = $2 AND p.role = $3
+    `, [email.trim(), password, role]);
+
+    if (res.rows.length > 0) {
+      const user = res.rows[0];
+      const cookieStore = await cookies();
+      cookieStore.set('forg_user_email', user.email, {
+        path: '/',
+        maxAge: 86400,
+        httpOnly: false,
+        sameSite: 'lax'
+      });
+      return { success: true, user };
+    }
+    return { success: false, error: "Invalid email, password, or role selector." };
+  } catch (err) {
+    console.error("Login action error:", err);
+    return { success: false, error: String(err) };
+  }
+}
