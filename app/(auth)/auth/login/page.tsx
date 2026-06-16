@@ -8,7 +8,7 @@ type PortalRole = 'staff' | 'admin' | 'accounts';
 export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<PortalRole>('staff');
   const [email, setEmail] = useState('staff@forgstudio.com');
-  const [password, setPassword] = useState('12345678');
+  const [password, setPassword] = useState('');
   
   useEffect(() => {
     // Read the query parameters using standard browser APIs to avoid bailing out static generation
