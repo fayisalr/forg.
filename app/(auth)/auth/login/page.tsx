@@ -7,7 +7,7 @@ type PortalRole = 'staff' | 'admin' | 'accounts';
 
 export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<PortalRole>('staff');
-  const [email, setEmail] = useState('staff@forgstudio.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
   useEffect(() => {
@@ -21,13 +21,8 @@ export default function LoginPage() {
 
   const handleTabChange = (tab: PortalRole) => {
     setActiveTab(tab);
-    if (tab === 'admin') {
-      setEmail('admin@forgstudio.com');
-    } else if (tab === 'accounts') {
-      setEmail('accounts@forgstudio.com');
-    } else {
-      setEmail('staff@forgstudio.com');
-    }
+    setEmail('');
+    setPassword('');
   };
 
   const handleLogin = (e: React.FormEvent) => {
