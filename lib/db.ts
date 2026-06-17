@@ -13,9 +13,9 @@ const poolConfig: PoolConfig = connectionString
       }
     }
   : {
-      host: process.env.DB_HOST || 'db.ygjmbeeuomwiciyjkmbd.supabase.co',
+      host: process.env.DB_HOST || 'aws-1-ap-southeast-2.pooler.supabase.com',
       port: parseInt(process.env.DB_PORT || '6543'),
-      user: process.env.DB_USER || 'postgres',
+      user: process.env.DB_USER || 'postgres.ygjmbeeuomwiciyjkmbd',
       password: process.env.DB_PASSWORD || 'Forg@2030#@',
       database: process.env.DB_NAME || 'postgres',
       ssl: {
